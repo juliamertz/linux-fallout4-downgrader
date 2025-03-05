@@ -1,0 +1,134 @@
+#!/usr/bin/env bash
+
+SKIP_DOWNLOAD=${SKIP_DOWNLOAD:-0}
+
+DEPOT_BASE_CONTENT_A="377160 377161 7497069378349273908"
+DEPOT_BASE_EXECUTABLE="377160 377162 5847529232406005096"
+DEPOT_BASE_CONTENT_B="377160 377163 5819088023757897745"
+DEPOT_WASTELAND_WORKSHOP="377160 435880 1255562923187931216"
+DEPOT_AUTOMATRON="377160 435870 1691678129192680960"
+
+# English
+DEPOT_LOCALE_EN_BASE="377160 377164 2178106366609958945"
+DEPOT_LOCALE_EN_AUTOMATRON="377160 435871 5106118861901111234"
+# Spanish
+DEPOT_LOCALE_ES_BASE="377160 377168 7717372852115364102"
+DEPOT_LOCALE_ES_AUTOMATRON="377160 435875 2953236065717816833"
+# French
+DEPOT_LOCALE_FR_BASE="377160 377165 7549549550652702123"
+DEPOT_LOCALE_FR_AUTOMATRON="377160 435872 5590419866095647350"
+# German
+DEPOT_LOCALE_DE_BASE="377160 377166 6854162778963425477"
+DEPOT_LOCALE_DE_AUTOMATRON="377160 435873 2207548206398235202"
+# Italian
+DEPOT_LOCALE_IT_BASE="377160 377167 783101348965844295"
+DEPOT_LOCALE_IT_AUTOMATRON="377160 435874 9032251103390457158"
+# Japanese
+DEPOT_LOCALE_JA_BASE="377160 393884 3455288010746962666"
+DEPOT_LOCALE_JA_AUTOMATRON="377160 404091 6756984187996423348"
+# Portuguese
+DEPOT_LOCALE_PT_BASE="377160 393882 7540680803954664080"
+DEPOT_LOCALE_PT_AUTOMATRON="377160 435878 8276750634369029613"
+# Russian
+DEPOT_LOCALE_RU_BASE="377160 393881 4735225695214536532"
+DEPOT_LOCALE_RU_AUTOMATRON="377160 435877 2675794883952625475"
+
+function download_depots() {
+  local cmd owns_automatron username
+  username=$1
+
+  cmd="steamcmd +login $username"
+  owns_automatron=0
+
+  cmd="$cmd +download_depot $DEPOT_BASE_CONTENT_A"
+  cmd="$cmd +download_depot $DEPOT_BASE_EXECUTABLE"
+  cmd="$cmd +download_depot $DEPOT_BASE_CONTENT_B"
+  cmd="$cmd +download_depot $DEPOT_WASTELAND_WORKSHOP"
+
+  read -rp "Do you own the automatron DLC? (y/n): " answer
+  if [[ $answer == "y" ]]; then
+    owns_automatron=1
+    cmd="$cmd +download_depot $DEPOT_AUTOMATRON"
+  fi
+
+  echo "Available locales:"
+  echo "en: English"
+  echo "es: Spanish"
+  echo "fr: French"
+  echo "de: German"
+  echo "it: Italian"
+  echo "ja: Japanese"
+  echo "pt: Portuguese"
+  echo "ru: Russian"
+
+  local locale upper_locale depot automatron_depot
+  read -rp "Which locale do you want to download?: " locale
+
+  upper_locale=$(echo "$locale" | tr '[:lower:]' '[:upper:]')
+  depot=$(eval echo "\$DEPOT_LOCALE_${upper_locale}_BASE")
+  automatron_depot="$(eval echo "\$DEPOT_LOCALE_${upper_locale}_AUTOMATRON")"
+
+  case $locale in
+    en | es | fr | de | it | ja | pt | ru)
+      cmd="$cmd +download_depot $depot"
+      if [[ $owns_automatron -eq 1 ]]; then
+        cmd="$cmd +download_depot $automatron_depot"
+      fi
+      ;;
+    *)
+      echo "Invalid locale. Please try again."
+      exit 1
+      ;;
+  esac
+
+  echo "Executing: $cmd"
+  eval "$cmd +quit"
+}
+
+
+# there are multiple locations these can be downloaded to depending on version / distro
+function find_content_dir() {
+  paths=("$HOME/.steam/steamcmd/linux32/steamapps/content" "$HOME/.local/share/Steam/linux32/steamapps/content")
+  for dir in "${paths[@]}"; do
+    if [ -d "$dir" ]; then
+      echo "$dir"
+      break
+    fi
+  done 
+}
+
+function copy_depots() {
+  cd "$(find_content_dir)/app_377160" || exit 1
+
+  # It is important that depot_377163 is copied last for the textures
+  # luckily the files will be ordered by name so this is not a problem
+  for dir in *; do
+    cp -vrf $dir/* "$GAME_DIR"
+  done
+}
+
+function delete_next_gen_files() {
+  cd "$GAME_DIR" || exit 1
+  rm -vf Data/cc*
+  rm -vf Fallout4IDs.ccc
+}
+
+if [[ ! $(type -P "steamcmd") ]]; then
+  echo "SteamCMD is not found in your path. Please install it first. https://developer.valvesoftware.com/wiki/SteamCMD#Linux"
+  exit 1
+fi
+
+if [[ -z "$GAME_DIR" ]]; then
+  echo "'GAME_DIR' envrionment variable is not set. Exiting."
+  exit 1
+fi
+
+if test "$SKIP_DOWNLOAD" -eq 0; then
+  read -rp "Enter your Steam username: " username 
+  download_depots "$username"
+fi
+
+copy_depots
+delete_next_gen_files
+
+echo Done!
