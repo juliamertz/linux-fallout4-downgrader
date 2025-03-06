@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+
+DRY=${DRY:-0}
+ARCHIVE="f4se.7z"
+OUT=f4se
+
+echo Deleting previous versions of F4SE from game directory
+if test "$DRY" -eq 0; then
+  rm -v "$GAME_DIR"/f4se_*.dll "$GAME_DIR"/f4se_*.exe
+fi
+
+echo Fetching compatible version of F4SE
+curl --output "$ARCHIVE" https://f4se.silverlock.org/archive/f4se_0_06_23.7z || exit 1
+
+if [[ "$DRY" -eq 0 && ! -d "$GAME_DIR" ]]; then
+  echo Unable to find fallout game directory
+  exit 1
+fi
+
+echo Extracting F4SE archive
+7z x "$ARCHIVE" -o$OUT
+
+echo Copying artifacts into game directory
+if test "$DRY" -eq 0; then
+  cp -v $OUT/f4se_*/f4se_loader.exe $OUT/f4se_*/f4se_*.dll "$GAME_DIR"
+  rm -rf "$OUT" "$ARCHIVE"
+fi
